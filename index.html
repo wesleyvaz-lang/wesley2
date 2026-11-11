@@ -1,1 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central de Iluminação IoT</title>
+    
+    <!-- Fonte Inter para tipografia limpa e moderna -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Paho MQTT Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        navy: {
+                            800: '#1e3a8a',
+                            900: '#172554',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos personalizados para o LED e animações de neon */
+        .led-transition {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .led-off {
+            background-color: #94a3b8; /* slate-400 */
+            box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 2px solid #cbd5e1; /* slate-300 */
+        }
+        
+        .led-on {
+            background-color: #22d3ee; /* cyan-400 */
+            border: 2px solid #67e8f9; /* cyan-300 */
+            box-shadow: 
+                0 0 15px 5px rgba(34, 211, 238, 0.4),
+                0 0 30px 15px rgba(34, 211, 238, 0.2),
+                inset 0 0 20px 2px rgba(255, 255, 255, 0.5);
+            animation: neon-pulse 2s infinite alternate;
+        }
+
+        @keyframes neon-pulse {
+            0% {
+                box-shadow: 
+                    0 0 15px 5px rgba(34, 211, 238, 0.4),
+                    0 0 30px 10px rgba(34, 211, 238, 0.2),
+                    inset 0 0 20px 2px rgba(255, 255, 255, 0.5);
+            }
+            100% {
+                box-shadow: 
+                    0 0 25px 10px rgba(34, 211, 238, 0.6),
+                    0 0 50px 20px rgba(34, 211, 238, 0.3),
+                    inset 0 0 20px 5px rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        /* Utilidade para ocultar barra de rolagem mas permitir rolagem se necessário em telas muito pequenas */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-sky-100 via-blue-50 to-slate-100 min-h-screen flex items-center justify-center p-4 antialiased text-slate-800 no-scrollbar">
+
+    <!-- Card Principal (Glassmorphism) -->
+    <div class="bg-white/60 backdrop-blur-md border border-white/40 shadow-xl rounded-2xl p-8 w-full max-w-2xl relative overflow-hidden">
+        
+        <!-- Decoração de fundo sutil -->
+        <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Cabeçalho -->
+        <div class="text-center mb-6 relative z-10">
+            <h1 class="text-2xl font-bold text-navy-900 tracking-tight">Central de Iluminação IoT</h1>
+            <p class="text-sm font-medium text-slate-500 mt-1 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                Controle de Hardware - Múltiplas Portas
+            </p>
+        </div>
+
+        <!-- Status de Rede -->
+        <div class="flex justify-center mb-6 relative z-10">
+            <div id="status-pill" class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 transition-colors duration-300">
+                <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
+                <span id="status-text">Sincronizando...</span>
+            </div>
+        </div>
+
+        <!-- Input de Tópico -->
+        <div class="mb-8 relative z-10">
+            <label for="topic-input" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">Tópico Base MQTT</label>
+            <input 
+                type="text" 
+                id="topic-input" 
+                value="gerry_sanchez_led_exclusivo/arduino"
+                class="w-full bg-white/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400/50 focus:border-sky-400 transition-all placeholder-slate-400"
+                placeholder="Insira o tópico base MQTT"
+            >
+            <p class="text-xs text-slate-400 mt-1 ml-1">Inscreve automaticamente em: <span id="topic-hint" class="font-mono text-sky-600">gerry_sanchez_led_exclusivo/arduino/#</span></p>
+        </div>
+
+        <!-- Painel de Controle (3 Portas) -->
+        <div class="space-y-4 relative z-10">
+            
+            <!-- Linha da Porta 13 -->
+            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div id="led-13" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
+                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700">Porta 13</span>
+                        <span id="text-13" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="publishMessage('13', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
+                    <button onclick="publishMessage('13', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+                </div>
+            </div>
+
+            <!-- Linha da Porta 12 -->
+            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div id="led-12" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
+                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700">Porta 12</span>
+                        <span id="text-12" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="publishMessage('12', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
+                    <button onclick="publishMessage('12', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+                </div>
+            </div>
+
+            <!-- Linha da Porta 11 -->
+            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div id="led-11" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
+                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="font-bold text-slate-700">Porta 11</span>
+                        <span id="text-11" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="publishMessage('11', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
+                    <button onclick="publishMessage('11', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Script de Lógica MQTT e UI -->
+    <script>
+        // Configurações e Variáveis Globais
+        let mqttClient;
+        let currentTopic = document.getElementById('topic-input').value.trim();
+        let isConnected = false;
+
+        // Referências DOM
+        const statusPill = document.getElementById('status-pill');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        
+        const topicInput = document.getElementById('topic-input');
+        const topicHint = document.getElementById('topic-hint');
+
+        // Utilitários de Interface
+        function updateNetworkUI(state) {
+            const actionButtons = document.querySelectorAll('.btn-action');
+            statusPill.className = 'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-colors duration-300 ';
+            statusDot.className = 'w-2.5 h-2.5 rounded-full ';
+
+            if (state === 'connecting') {
+                statusPill.classList.add('bg-yellow-100', 'text-yellow-700');
+                statusDot.classList.add('bg-yellow-400', 'animate-pulse');
+                statusText.textContent = 'Sincronizando...';
+                actionButtons.forEach(btn => btn.disabled = true);
+            } else if (state === 'online') {
+                statusPill.classList.add('bg-emerald-100', 'text-emerald-700');
+                statusDot.classList.add('bg-emerald-500');
+                statusText.textContent = 'Sistema Online';
+                actionButtons.forEach(btn => btn.disabled = false);
+            } else if (state === 'offline') {
+                statusPill.classList.add('bg-rose-100', 'text-rose-700');
+                statusDot.classList.add('bg-rose-500');
+                statusText.textContent = 'Sistema Offline';
+                actionButtons.forEach(btn => btn.disabled = true);
+            }
+        }
+
+        // REGRA DE OURO: A UI só é alterada quando a mensagem MQTT chega.
+        function setLedVisualState(port, isOn) {
+            const ledCircle = document.getElementById(`led-${port}`);
+            const ledText = document.getElementById(`text-${port}`);
+            
+            if (!ledCircle || !ledText) return;
+
+            if (isOn) {
+                ledCircle.classList.remove('led-off');
+                ledCircle.classList.add('led-on');
+                ledText.textContent = 'Ativa';
+                ledText.classList.remove('text-slate-500');
+                ledText.classList.add('text-sky-600', 'font-bold');
+            } else {
+                ledCircle.classList.remove('led-on');
+                ledCircle.classList.add('led-off');
+                ledText.textContent = 'Inativa';
+                ledText.classList.remove('text-sky-600', 'font-bold');
+                ledText.classList.add('text-slate-500');
+            }
+        }
+
+        // Callbacks MQTT
+        function onConnect() {
+            console.log("Conectado ao Broker MQTT com sucesso!");
+            isConnected = true;
+            updateNetworkUI('online');
+            
+            if (currentTopic) {
+                const subTopic = currentTopic + "/#";
+                mqttClient.subscribe(subTopic);
+                console.log("Inscrito no tópico wildcard:", subTopic);
+            }
+        }
+
+        function onConnectionLost(responseObject) {
+            isConnected = false;
+            updateNetworkUI('offline');
+            if (responseObject.errorCode !== 0) {
+                console.warn("Conexão perdida:", responseObject.errorMessage);
+                setTimeout(initMQTT, 5000); 
+            }
+        }
+
+        function onMessageArrived(message) {
+            console.log("Mensagem recebida -> Tópico:", message.destinationName, "| Payload:", message.payloadString);
+            
+            // Extrai a porta do tópico recebido verificando se bate com a base
+            if (message.destinationName.startsWith(currentTopic + "/")) {
+                const topicParts = message.destinationName.split('/');
+                const port = topicParts[topicParts.length - 1]; // Ex: "13", "12", ou "11"
+                const payload = message.payloadString.trim();
+                
+                if (payload === "1") {
+                    setLedVisualState(port, true);
+                } else if (payload === "0") {
+                    setLedVisualState(port, false);
+                }
+            }
+        }
+
+        // Inicialização do MQTT
+        function initMQTT() {
+            updateNetworkUI('connecting');
+            
+            const clientId = 'client-' + Math.random().toString(16).substr(2, 8);
+            const host = "broker.hivemq.com";
+            const port = 8884;
+            
+            mqttClient = new Paho.MQTT.Client(host, port, "/mqtt", clientId);
+            mqttClient.onConnectionLost = onConnectionLost;
+            mqttClient.onMessageArrived = onMessageArrived;
+
+            const options = {
+                useSSL: true,
+                timeout: 3,
+                onSuccess: onConnect,
+                onFailure: function (message) {
+                    console.error("Falha na conexão: ", message.errorMessage);
+                    updateNetworkUI('offline');
+                    setTimeout(initMQTT, 5000);
+                }
+            };
+
+            mqttClient.connect(options);
+        }
+
+        // Interação dos Botões: APENAS publicam. UI não muda aqui.
+        function publishMessage(port, payload) {
+            if (!isConnected || !currentTopic) return;
+
+            const targetTopic = `${currentTopic}/${port}`;
+            const message = new Paho.MQTT.Message(payload);
+            message.destinationName = targetTopic;
+            mqttClient.send(message);
+            console.log("Mensagem publicada:", payload, "no tópico:", targetTopic);
+        }
+
+        // Gestão de Mudança de Tópico Base
+        topicInput.addEventListener('blur', function() {
+            const newTopic = this.value.trim();
+            
+            if (newTopic !== currentTopic && newTopic !== "") {
+                if (isConnected && currentTopic !== "") {
+                    mqttClient.unsubscribe(currentTopic + "/#");
+                    console.log("Desinscrito do tópico antigo:", currentTopic + "/#");
+                }
+                
+                currentTopic = newTopic;
+                topicHint.textContent = currentTopic + "/#";
+                
+                // Reinicia estado visual de todos os LEDs localmente para evitar inconsistência visual antiga
+                ['13', '12', '11'].forEach(p => setLedVisualState(p, false));
+                
+                if (isConnected) {
+                    mqttClient.subscribe(currentTopic + "/#");
+                    console.log("Inscrito no novo tópico:", currentTopic + "/#");
+                }
+            }
+        });
+
+        topicInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.blur();
+            }
+        });
+
+        // Inicializa
+        window.addEventListener('load', initMQTT);
+
+    </script>
+</body>
+</html>
