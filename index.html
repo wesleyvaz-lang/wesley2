@@ -1,3 +1,4 @@
+HTML
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5,351 +6,419 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Central de Iluminação IoT</title>
     
-    <!-- Fonte Inter para tipografia limpa e moderna -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Paho MQTT Library -->
+    <!-- Fonte Moderna: Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Paho MQTT via CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
 
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        navy: {
-                            800: '#1e3a8a',
-                            900: '#172554',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
-
+    <!-- Estilos Customizados (Efeitos Neon e Glassmorphism) -->
     <style>
-        /* Estilos personalizados para o LED e animações de neon */
-        .led-transition {
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        
+
+        /* Efeitos Neon (Glow) */
+        .glow-blue {
+            background-color: #3b82f6;
+            box-shadow: 0 0 15px 5px rgba(59, 130, 246, 0.6);
+        }
+        .glow-green {
+            background-color: #10b981;
+            box-shadow: 0 0 15px 5px rgba(16, 185, 129, 0.6);
+        }
+        .glow-amber {
+            background-color: #f59e0b;
+            box-shadow: 0 0 15px 5px rgba(245, 158, 11, 0.6);
+        }
         .led-off {
-            background-color: #94a3b8; /* slate-400 */
-            box-shadow: inset 0 4px 6px -1px rgba(0, 0, 0, 0.1), inset 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border: 2px solid #cbd5e1; /* slate-300 */
-        }
-        
-        .led-on {
-            background-color: #22d3ee; /* cyan-400 */
-            border: 2px solid #67e8f9; /* cyan-300 */
-            box-shadow: 
-                0 0 15px 5px rgba(34, 211, 238, 0.4),
-                0 0 30px 15px rgba(34, 211, 238, 0.2),
-                inset 0 0 20px 2px rgba(255, 255, 255, 0.5);
-            animation: neon-pulse 2s infinite alternate;
+            background-color: #94a3b8;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
         }
 
-        @keyframes neon-pulse {
-            0% {
-                box-shadow: 
-                    0 0 15px 5px rgba(34, 211, 238, 0.4),
-                    0 0 30px 10px rgba(34, 211, 238, 0.2),
-                    inset 0 0 20px 2px rgba(255, 255, 255, 0.5);
-            }
-            100% {
-                box-shadow: 
-                    0 0 25px 10px rgba(34, 211, 238, 0.6),
-                    0 0 50px 20px rgba(34, 211, 238, 0.3),
-                    inset 0 0 20px 5px rgba(255, 255, 255, 0.8);
-            }
+        /* Bloqueio da Interface (quando offline) */
+        .disabled-ui {
+            opacity: 0.5;
+            pointer-events: none;
+            filter: grayscale(30%);
+            transition: all 0.3s ease;
         }
 
-        /* Utilidade para ocultar barra de rolagem mas permitir rolagem se necessário em telas muito pequenas */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+        /* Estilização da trilha do slider nativo (input type="range") */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
         }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 2px;
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-sky-100 via-blue-50 to-slate-100 min-h-screen flex items-center justify-center p-4 antialiased text-slate-800 no-scrollbar">
+<body class="bg-gradient-to-br from-blue-50 to-slate-100 min-h-screen text-slate-800 p-4 md:p-8 flex flex-col items-center">
 
-    <!-- Card Principal (Glassmorphism) -->
-    <div class="bg-white/60 backdrop-blur-md border border-white/40 shadow-xl rounded-2xl p-8 w-full max-w-2xl relative overflow-hidden">
+    <div class="w-full max-w-5xl space-y-6">
         
-        <!-- Decoração de fundo sutil -->
-        <div class="absolute -top-24 -right-24 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -bottom-24 -left-24 w-48 h-48 bg-cyan-400/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <!-- Cabeçalho -->
-        <div class="text-center mb-6 relative z-10">
-            <h1 class="text-2xl font-bold text-navy-900 tracking-tight">Central de Iluminação IoT</h1>
-            <p class="text-sm font-medium text-slate-500 mt-1 flex items-center justify-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                Controle de Hardware - Múltiplas Portas
-            </p>
-        </div>
-
-        <!-- Status de Rede -->
-        <div class="flex justify-center mb-6 relative z-10">
-            <div id="status-pill" class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 transition-colors duration-300">
-                <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
-                <span id="status-text">Sincronizando...</span>
+        <!-- Cabeçalho Técnico -->
+        <header class="flex flex-col md:flex-row justify-between items-center bg-white/75 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/50">
+            <div>
+                <h1 class="text-3xl font-extrabold text-sky-950">Central de Iluminação IoT</h1>
+                <p class="text-slate-500 font-medium mt-1">Monitoramento e Controle de Hardware em Tempo Real</p>
             </div>
-        </div>
+            <div class="mt-4 md:mt-0">
+                <span class="bg-slate-200 text-slate-700 px-4 py-2 rounded-full text-sm font-semibold tracking-wide shadow-sm">Revisão: v2.5.0</span>
+            </div>
+        </header>
 
-        <!-- Input de Tópico -->
-        <div class="mb-8 relative z-10">
-            <label for="topic-input" class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 ml-1">Tópico Base MQTT</label>
-            <input 
-                type="text" 
-                id="topic-input" 
-                value="gerry_sanchez_led_exclusivo/arduino"
-                class="w-full bg-white/70 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400/50 focus:border-sky-400 transition-all placeholder-slate-400"
-                placeholder="Insira o tópico base MQTT"
-            >
-            <p class="text-xs text-slate-400 mt-1 ml-1">Inscreve automaticamente em: <span id="topic-hint" class="font-mono text-sky-600">gerry_sanchez_led_exclusivo/arduino/#</span></p>
-        </div>
+        <!-- Painel de Conexão MQTT -->
+        <section class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50">
+            <h2 class="text-xl font-bold text-sky-950 mb-4 flex items-center gap-2">
+                <svg class="w-6 h-6 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.04 4.04h7.92a2 2 0 012 2v11.92a2 2 0 01-2 2H8.04a2 2 0 01-2-2V6.04a2 2 0 012-2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 16v.01"></path></svg>
+                Configurações de Conexão
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div class="flex flex-col">
+                    <label class="text-sm font-semibold text-slate-600 mb-1">Endereço do Broker</label>
+                    <input type="text" id="brokerHost" value="broker.hivemq.com" class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all">
+                </div>
+                <div class="flex flex-col">
+                    <label class="text-sm font-semibold text-slate-600 mb-1">Porta WSS</label>
+                    <input type="number" id="brokerPort" value="8884" class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all">
+                </div>
+                <div class="flex flex-col md:col-span-2">
+                    <label class="text-sm font-semibold text-slate-600 mb-1">Tópico Geral</label>
+                    <input type="text" id="brokerTopic" value="gerry_sanchez_led_exclusivo/arduino" class="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all">
+                </div>
+                <div class="md:col-span-4 flex justify-between items-center mt-2">
+                    <!-- Status de Rede (Pill) -->
+                    <div id="statusPill" class="px-4 py-2 rounded-full font-bold text-sm shadow-sm bg-red-100 text-red-700 transition-all duration-300">
+                        ● Offline / Desconectado
+                    </div>
+                    <button id="btnConnect" onclick="toggleConnection()" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-2 px-8 rounded-xl shadow-lg transition-all active:scale-95">
+                        Conectar Servidor
+                    </button>
+                </div>
+            </div>
+        </section>
 
-        <!-- Painel de Controle (3 Portas) -->
-        <div class="space-y-4 relative z-10">
+        <!-- Área de Controles do Hardware (Bloqueada se Offline) -->
+        <main id="hardwareControls" class="disabled-ui grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
-            <!-- Linha da Porta 13 -->
-            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
-                <div class="flex items-center gap-4">
-                    <div id="led-13" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
-                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-slate-700">Porta 13</span>
-                        <span id="text-13" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="publishMessage('13', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
-                    <button onclick="publishMessage('13', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+            <!-- LED 13 (Azul) -->
+            <div class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50 flex flex-col items-center justify-between h-64 transition-transform hover:-translate-y-1">
+                <h3 class="font-bold text-slate-500 tracking-wider">LED 13 (Digital)</h3>
+                <div id="led13-indicator" class="w-14 h-14 rounded-full led-off transition-all duration-500 mt-2"></div>
+                <div class="text-2xl font-black text-slate-800 my-2" id="led13-status">OFF</div>
+                <div class="flex w-full gap-2">
+                    <button onclick="publishMessage('1')" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">LIGAR</button>
+                    <button onclick="publishMessage('0')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">DESLIGAR</button>
                 </div>
             </div>
 
-            <!-- Linha da Porta 12 -->
-            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
-                <div class="flex items-center gap-4">
-                    <div id="led-12" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
-                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-slate-700">Porta 12</span>
-                        <span id="text-12" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="publishMessage('12', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
-                    <button onclick="publishMessage('12', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+            <!-- LED 10 (Verde) -->
+            <div class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50 flex flex-col items-center justify-between h-64 transition-transform hover:-translate-y-1">
+                <h3 class="font-bold text-slate-500 tracking-wider">LED 10 (Digital)</h3>
+                <div id="led10-indicator" class="w-14 h-14 rounded-full led-off transition-all duration-500 mt-2"></div>
+                <div class="text-2xl font-black text-slate-800 my-2" id="led10-status">OFF</div>
+                <div class="flex w-full gap-2">
+                    <button onclick="publishMessage('2')" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">LIGAR</button>
+                    <button onclick="publishMessage('3')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">DESLIGAR</button>
                 </div>
             </div>
 
-            <!-- Linha da Porta 11 -->
-            <div class="flex items-center justify-between p-4 bg-white/50 backdrop-blur-sm rounded-xl border border-white/80 shadow-sm">
-                <div class="flex items-center gap-4">
-                    <div id="led-11" class="w-12 h-12 rounded-full led-off led-transition relative flex items-center justify-center shrink-0">
-                        <div class="absolute top-1.5 left-2 w-3 h-3 bg-white/30 rounded-full blur-[1.5px]"></div>
-                    </div>
-                    <div class="flex flex-col">
-                        <span class="font-bold text-slate-700">Porta 11</span>
-                        <span id="text-11" class="text-xs font-medium text-slate-500 transition-colors duration-300">Inativa</span>
-                    </div>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="publishMessage('11', '1')" class="btn-action bg-emerald-400 hover:bg-emerald-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">LIGAR</button>
-                    <button onclick="publishMessage('11', '0')" class="btn-action bg-rose-400 hover:bg-rose-500 text-white py-2 px-3 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-xs tracking-wide">DESLIGAR</button>
+            <!-- LED 8 (Âmbar) -->
+            <div class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50 flex flex-col items-center justify-between h-64 transition-transform hover:-translate-y-1">
+                <h3 class="font-bold text-slate-500 tracking-wider">LED 8 (Digital)</h3>
+                <div id="led8-indicator" class="w-14 h-14 rounded-full led-off transition-all duration-500 mt-2"></div>
+                <div class="text-2xl font-black text-slate-800 my-2" id="led8-status">OFF</div>
+                <div class="flex w-full gap-2">
+                    <button onclick="publishMessage('4')" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">LIGAR</button>
+                    <button onclick="publishMessage('5')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-2 rounded-lg transition-all active:scale-95 shadow-md">DESLIGAR</button>
                 </div>
             </div>
 
-        </div>
+            <!-- Luminosidade Regulável (PWM Pino 6) -->
+            <div class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50 flex flex-col justify-center h-64 md:col-span-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-500 tracking-wider">Luminosidade (Pino 6 - PWM)</h3>
+                    <span id="pwm-value-text" class="text-xl font-black text-sky-600">0%</span>
+                </div>
+                
+                <!-- Bargraf (Segmentos Visuais controlados EXCLUSIVAMENTE pelo Broker) -->
+                <div id="bargraph-container" class="flex gap-1 mb-4 h-6">
+                    <!-- 10 Segmentos gerados no JS -->
+                </div>
+                
+                <!-- Slider do Usuário (Envia o comando, mas não muda a visualização dos segmentos) -->
+                <input type="range" id="pwmSlider" min="0" max="255" value="0" class="w-full mt-2" onchange="publishPWM(this.value)">
+                <p class="text-xs text-slate-400 mt-3 text-center">*O gráfico só atualiza após a confirmação do hardware (Regra de Ouro).</p>
+            </div>
 
+            <!-- Monitoramento Analógico (Canal A0) -->
+            <div class="bg-white/75 backdrop-blur-md rounded-3xl p-6 shadow-xl border border-white/50 flex flex-col justify-center h-64">
+                <h3 class="font-bold text-slate-500 tracking-wider text-center mb-2">Sensor Analógico (A0)</h3>
+                <div class="text-5xl font-black text-sky-950 text-center my-4" id="analog-value">0</div>
+                <div class="w-full bg-slate-200 rounded-full h-4 shadow-inner overflow-hidden">
+                    <div id="analog-progress" class="bg-gradient-to-r from-sky-400 to-sky-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 mt-2 font-semibold">
+                    <span>0</span>
+                    <span>1023</span>
+                </div>
+            </div>
+
+        </main>
     </div>
 
-    <!-- Script de Lógica MQTT e UI -->
     <script>
-        // Configurações e Variáveis Globais
-        let mqttClient;
-        let currentTopic = document.getElementById('topic-input').value.trim();
+        // Variáveis Globais MQTT
+        let mqttClient = null;
         let isConnected = false;
+        let currentTopic = "";
 
-        // Referências DOM
-        const statusPill = document.getElementById('status-pill');
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        
-        const topicInput = document.getElementById('topic-input');
-        const topicHint = document.getElementById('topic-hint');
+        // Referências de Interface
+        const statusPill = document.getElementById('statusPill');
+        const btnConnect = document.getElementById('btnConnect');
+        const hardwareControls = document.getElementById('hardwareControls');
+        const bargraphContainer = document.getElementById('bargraph-container');
 
-        // Utilitários de Interface
-        function updateNetworkUI(state) {
-            const actionButtons = document.querySelectorAll('.btn-action');
-            statusPill.className = 'inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold transition-colors duration-300 ';
-            statusDot.className = 'w-2.5 h-2.5 rounded-full ';
-
-            if (state === 'connecting') {
-                statusPill.classList.add('bg-yellow-100', 'text-yellow-700');
-                statusDot.classList.add('bg-yellow-400', 'animate-pulse');
-                statusText.textContent = 'Sincronizando...';
-                actionButtons.forEach(btn => btn.disabled = true);
-            } else if (state === 'online') {
-                statusPill.classList.add('bg-emerald-100', 'text-emerald-700');
-                statusDot.classList.add('bg-emerald-500');
-                statusText.textContent = 'Sistema Online';
-                actionButtons.forEach(btn => btn.disabled = false);
-            } else if (state === 'offline') {
-                statusPill.classList.add('bg-rose-100', 'text-rose-700');
-                statusDot.classList.add('bg-rose-500');
-                statusText.textContent = 'Sistema Offline';
-                actionButtons.forEach(btn => btn.disabled = true);
+        // Inicialização: Cria os segmentos do Bargraph
+        function initBargraph() {
+            bargraphContainer.innerHTML = '';
+            for(let i=0; i<10; i++){
+                const segment = document.createElement('div');
+                segment.className = "flex-1 rounded-sm transition-all duration-300 led-off";
+                segment.id = `segment-${i}`;
+                bargraphContainer.appendChild(segment);
             }
         }
+        initBargraph();
 
-        // REGRA DE OURO: A UI só é alterada quando a mensagem MQTT chega.
-        function setLedVisualState(port, isOn) {
-            const ledCircle = document.getElementById(`led-${port}`);
-            const ledText = document.getElementById(`text-${port}`);
-            
-            if (!ledCircle || !ledText) return;
-
-            if (isOn) {
-                ledCircle.classList.remove('led-off');
-                ledCircle.classList.add('led-on');
-                ledText.textContent = 'Ativa';
-                ledText.classList.remove('text-slate-500');
-                ledText.classList.add('text-sky-600', 'font-bold');
-            } else {
-                ledCircle.classList.remove('led-on');
-                ledCircle.classList.add('led-off');
-                ledText.textContent = 'Inativa';
-                ledText.classList.remove('text-sky-600', 'font-bold');
-                ledText.classList.add('text-slate-500');
-            }
-        }
-
-        // Callbacks MQTT
-        function onConnect() {
-            console.log("Conectado ao Broker MQTT com sucesso!");
-            isConnected = true;
-            updateNetworkUI('online');
-            
-            if (currentTopic) {
-                const subTopic = currentTopic + "/#";
-                mqttClient.subscribe(subTopic);
-                console.log("Inscrito no tópico wildcard:", subTopic);
-            }
-        }
-
-        function onConnectionLost(responseObject) {
-            isConnected = false;
-            updateNetworkUI('offline');
-            if (responseObject.errorCode !== 0) {
-                console.warn("Conexão perdida:", responseObject.errorMessage);
-                setTimeout(initMQTT, 5000); 
-            }
-        }
-
-        function onMessageArrived(message) {
-            console.log("Mensagem recebida -> Tópico:", message.destinationName, "| Payload:", message.payloadString);
-            
-            // Extrai a porta do tópico recebido verificando se bate com a base
-            if (message.destinationName.startsWith(currentTopic + "/")) {
-                const topicParts = message.destinationName.split('/');
-                const port = topicParts[topicParts.length - 1]; // Ex: "13", "12", ou "11"
-                const payload = message.payloadString.trim();
-                
-                if (payload === "1") {
-                    setLedVisualState(port, true);
-                } else if (payload === "0") {
-                    setLedVisualState(port, false);
+        // ----------------------------------------------------
+        // LÓGICA DE REDE (MQTT)
+        // ----------------------------------------------------
+        function toggleConnection() {
+            if (isConnected) {
+                // Desconectar se já estiver conectado
+                if (mqttClient) {
+                    mqttClient.disconnect();
                 }
+                setUIStatus('offline');
+            } else {
+                // Conectar
+                connectToBroker();
             }
         }
 
-        // Inicialização do MQTT
-        function initMQTT() {
-            updateNetworkUI('connecting');
+        function connectToBroker() {
+            const host = document.getElementById('brokerHost').value.trim();
+            const port = parseInt(document.getElementById('brokerPort').value);
+            currentTopic = document.getElementById('brokerTopic').value.trim();
             
-            const clientId = 'client-' + Math.random().toString(16).substr(2, 8);
-            const host = "broker.hivemq.com";
-            const port = 8884;
-            
-            mqttClient = new Paho.MQTT.Client(host, port, "/mqtt", clientId);
+            // Gerar ID de Cliente Dinâmico (Evita conflitos no Broker)
+            const clientId = "IoT_Web_" + Math.random().toString(16).substring(2, 10);
+
+            setUIStatus('connecting');
+
+            // Instancia o cliente Paho MQTT
+            mqttClient = new Paho.MQTT.Client(host, port, clientId);
+
+            // Callbacks de Eventos
             mqttClient.onConnectionLost = onConnectionLost;
             mqttClient.onMessageArrived = onMessageArrived;
 
+            // Opções de Conexão (Forçando WSS/SSL)
             const options = {
                 useSSL: true,
                 timeout: 3,
                 onSuccess: onConnect,
-                onFailure: function (message) {
-                    console.error("Falha na conexão: ", message.errorMessage);
-                    updateNetworkUI('offline');
-                    setTimeout(initMQTT, 5000);
-                }
+                onFailure: onFail
             };
 
-            mqttClient.connect(options);
+            try {
+                mqttClient.connect(options);
+            } catch (err) {
+                console.error("Erro na tentativa de conexão:", err);
+                setUIStatus('offline');
+            }
         }
 
-        // Interação dos Botões: APENAS publicam. UI não muda aqui.
-        function publishMessage(port, payload) {
-            if (!isConnected || !currentTopic) return;
-
-            const targetTopic = `${currentTopic}/${port}`;
-            const message = new Paho.MQTT.Message(payload);
-            message.destinationName = targetTopic;
-            mqttClient.send(message);
-            console.log("Mensagem publicada:", payload, "no tópico:", targetTopic);
-        }
-
-        // Gestão de Mudança de Tópico Base
-        topicInput.addEventListener('blur', function() {
-            const newTopic = this.value.trim();
+        // Callback: Sucesso na Conexão
+        function onConnect() {
+            console.log("Conectado ao Broker MQTT com sucesso!");
             
-            if (newTopic !== currentTopic && newTopic !== "") {
-                if (isConnected && currentTopic !== "") {
-                    mqttClient.unsubscribe(currentTopic + "/#");
-                    console.log("Desinscrito do tópico antigo:", currentTopic + "/#");
-                }
-                
-                currentTopic = newTopic;
-                topicHint.textContent = currentTopic + "/#";
-                
-                // Reinicia estado visual de todos os LEDs localmente para evitar inconsistência visual antiga
-                ['13', '12', '11'].forEach(p => setLedVisualState(p, false));
-                
-                if (isConnected) {
-                    mqttClient.subscribe(currentTopic + "/#");
-                    console.log("Inscrito no novo tópico:", currentTopic + "/#");
+            // Assina o tópico informado
+            mqttClient.subscribe(currentTopic);
+            console.log("Inscrito no tópico: " + currentTopic);
+            
+            setUIStatus('online');
+        }
+
+        // Callback: Falha ao Conectar
+        function onFail(context) {
+            console.error("Falha ao conectar: " + context.errorMessage);
+            setUIStatus('offline');
+            alert("Falha na conexão: Verifique o host e porta WSS.");
+        }
+
+        // Callback: Conexão Perdida (Queda de Rede ou Desconexão Manual)
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.error("Conexão perdida anormalmente: " + responseObject.errorMessage);
+            }
+            setUIStatus('offline');
+        }
+
+        // Função para Publicar Mensagem (Ação dos Botões)
+        function publishMessage(payloadStr) {
+            if (!isConnected) return;
+            const message = new Paho.MQTT.Message(payloadStr);
+            message.destinationName = currentTopic;
+            mqttClient.send(message);
+            // NOTA: A interface não é atualizada aqui. Obedecendo à "Regra de Ouro".
+        }
+
+        // Publica valor do PWM do Slider
+        function publishPWM(value) {
+            publishMessage("P:" + value);
+            // O bargraph não altera visualmente até o Broker devolver a mensagem
+        }
+
+        // ----------------------------------------------------
+        // REGRA DE OURO: CALLBACK DE RECEBIMENTO (Atualiza a UI)
+        // ----------------------------------------------------
+        function onMessageArrived(message) {
+            const payload = message.payloadString;
+            console.log("Mensagem recebida: ", payload);
+
+            // LED 13 (Azul)
+            if (payload === '1') updateLedUI('13', true, 'glow-blue');
+            else if (payload === '0') updateLedUI('13', false, 'glow-blue');
+            
+            // LED 10 (Verde)
+            else if (payload === '2') updateLedUI('10', true, 'glow-green');
+            else if (payload === '3') updateLedUI('10', false, 'glow-green');
+            
+            // LED 8 (Âmbar)
+            else if (payload === '4') updateLedUI('8', true, 'glow-amber');
+            else if (payload === '5') updateLedUI('8', false, 'glow-amber');
+
+            // Leitura PWM (Bargraph) -> Esperado 'P:VALOR'
+            else if (payload.startsWith("P:")) {
+                const val = parseInt(payload.substring(2));
+                if (!isNaN(val)) updateBargraphUI(val);
+            }
+
+            // Leitura Analógica A0 -> Esperado 'A:VALOR'
+            else if (payload.startsWith("A:")) {
+                const val = parseInt(payload.substring(2));
+                if (!isNaN(val)) updateAnalogUI(val);
+            }
+        }
+
+        // ----------------------------------------------------
+        // FUNÇÕES AUXILIARES DE ATUALIZAÇÃO VISUAL
+        // ----------------------------------------------------
+        
+        // Atualiza a pílula de Status e Botão
+        function setUIStatus(status) {
+            if (status === 'connecting') {
+                isConnected = false;
+                statusPill.className = "px-4 py-2 rounded-full font-bold text-sm shadow-sm bg-yellow-100 text-yellow-800 animate-pulse";
+                statusPill.innerHTML = "● Sincronizando...";
+                btnConnect.innerText = "Aguarde...";
+                btnConnect.disabled = true;
+                hardwareControls.classList.add('disabled-ui');
+            } 
+            else if (status === 'online') {
+                isConnected = true;
+                statusPill.className = "px-4 py-2 rounded-full font-bold text-sm shadow-sm bg-emerald-100 text-emerald-800";
+                statusPill.innerHTML = "● Sistema Online";
+                btnConnect.innerText = "Desconectar Servidor";
+                btnConnect.classList.replace('bg-sky-600', 'bg-red-500');
+                btnConnect.classList.replace('hover:bg-sky-700', 'hover:bg-red-600');
+                btnConnect.disabled = false;
+                hardwareControls.classList.remove('disabled-ui');
+            } 
+            else { // offline
+                isConnected = false;
+                mqttClient = null;
+                statusPill.className = "px-4 py-2 rounded-full font-bold text-sm shadow-sm bg-red-100 text-red-700";
+                statusPill.innerHTML = "● Offline / Desconectado";
+                btnConnect.innerText = "Conectar Servidor";
+                btnConnect.classList.replace('bg-red-500', 'bg-sky-600');
+                btnConnect.classList.replace('hover:bg-red-600', 'hover:bg-sky-700');
+                btnConnect.disabled = false;
+                hardwareControls.classList.add('disabled-ui');
+            }
+        }
+
+        // Altera visual dos LEDs Digitais
+        function updateLedUI(pin, isOn, glowClass) {
+            const indicator = document.getElementById(`led${pin}-indicator`);
+            const textStatus = document.getElementById(`led${pin}-status`);
+            
+            if (isOn) {
+                indicator.classList.remove('led-off');
+                indicator.classList.add(glowClass);
+                textStatus.innerText = "ON";
+            } else {
+                indicator.classList.remove(glowClass);
+                indicator.classList.add('led-off');
+                textStatus.innerText = "OFF";
+            }
+        }
+
+        // Altera visual do Bargraph PWM
+        function updateBargraphUI(pwmValue) {
+            // Garante faixa de 0 a 255
+            const value = Math.max(0, Math.min(255, pwmValue));
+            const percentage = (value / 255) * 100;
+            
+            document.getElementById('pwm-value-text').innerText = `${Math.round(percentage)}%`;
+            document.getElementById('pwmSlider').value = value; // Sincroniza a bolinha do slider com o state real
+
+            // Atualiza os 10 segmentos (cada segmento representa 10% de brilho)
+            const activeSegments = Math.round(percentage / 10);
+            
+            for(let i=0; i<10; i++){
+                const segment = document.getElementById(`segment-${i}`);
+                if (i < activeSegments) {
+                    segment.classList.remove('led-off');
+                    segment.classList.add('bg-sky-500', 'shadow-[0_0_8px_rgba(14,165,233,0.8)]');
+                } else {
+                    segment.classList.add('led-off');
+                    segment.classList.remove('bg-sky-500', 'shadow-[0_0_8px_rgba(14,165,233,0.8)]');
                 }
             }
-        });
+        }
 
-        topicInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                this.blur();
-            }
-        });
-
-        // Inicializa
-        window.addEventListener('load', initMQTT);
-
+        // Altera visual do display Analógico
+        function updateAnalogUI(analogValue) {
+            // Garante faixa de 0 a 1023
+            const value = Math.max(0, Math.min(1023, analogValue));
+            const percentage = (value / 1023) * 100;
+            
+            document.getElementById('analog-value').innerText = value;
+            document.getElementById('analog-progress').style.width = `${percentage}%`;
+        }
     </script>
 </body>
 </html>
